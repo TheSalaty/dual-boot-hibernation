@@ -1,0 +1,55 @@
+#
+# Translation template for the Hibernate → Windows GNOME Shell extension.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: hibernate-windows@salaty\n"
+"Report-Msgid-Bugs-To: https://github.com/TheSalaty/dual-boot-hibernation/issues\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: \n"
+
+#: gnome-extension/src/extension.ts gnome-extension/src/prefs.ts
+msgid "Hibernate → Windows"
+msgstr ""
+
+#: gnome-extension/src/extension.ts gnome-extension/src/prefs.ts
+msgid "Hibernate"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Entries"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Custom entries"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Extra entries added to the power menu"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Hide default entries"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Hide the built-in power-menu entries you don’t need"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Hide Suspend"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Hide Restart"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Hide Power Off"
+msgstr ""
+
+#: gnome-extension/src/prefs.ts
+msgid "Hide Log Out"
+msgstr ""

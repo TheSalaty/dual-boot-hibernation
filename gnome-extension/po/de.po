@@ -1,0 +1,44 @@
+#
+# German translation for the Hibernate → Windows GNOME Shell extension.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: hibernate-windows@salaty\n"
+"Report-Msgid-Bugs-To: https://github.com/TheSalaty/dual-boot-hibernation/issues\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de\n"
+
+msgid "Hibernate → Windows"
+msgstr "Ruhezustand → Windows"
+
+msgid "Hibernate"
+msgstr "Ruhezustand"
+
+msgid "Entries"
+msgstr "Einträge"
+
+msgid "Custom entries"
+msgstr "Eigene Einträge"
+
+msgid "Extra entries added to the power menu"
+msgstr "Zusätzliche Einträge im Ausschaltmenü"
+
+msgid "Hide default entries"
+msgstr "Standardeinträge ausblenden"
+
+msgid "Hide the built-in power-menu entries you don’t need"
+msgstr "Blende die eingebauten Einträge aus, die du nicht brauchst"
+
+msgid "Hide Suspend"
+msgstr "Bereitschaft ausblenden"
+
+msgid "Hide Restart"
+msgstr "Neustart ausblenden"
+
+msgid "Hide Power Off"
+msgstr "Ausschalten ausblenden"
+
+msgid "Hide Log Out"
+msgstr "Abmelden ausblenden"

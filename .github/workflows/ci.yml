@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extension:
+    name: Lint, type-check & build (extension)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install GNOME build tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libglib2.0-bin gettext zip
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        env:
+          CI: 'true'
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Prettier
+        run: npm run format:check
+
+      - name: Build & pack
+        run: npm run pack
+
+      - name: Upload packaged extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: hibernate-windows-extension
+          path: '*.shell-extension.zip'
+          if-no-files-found: error
+
+  shell:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: Lint shell scripts
+        run: shellcheck install.sh scripts/hibernate-windows.sh
+
+  release:
+    name: Publish release
+    needs: [extension, shell]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install GNOME build tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libglib2.0-bin gettext zip
+
+      - run: npm ci
+
+      - name: Build & pack
+        run: npm run pack
+
+      - name: Create release and attach the extension zip
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.shell-extension.zip'
+          generate_release_notes: true

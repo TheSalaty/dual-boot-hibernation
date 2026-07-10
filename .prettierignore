@@ -1,0 +1,22 @@
+# ESLint (@falcondev-oss/configs, antfu-based) owns these file types and has its
+# own stylistic rules — running Prettier on them too would cause a formatter
+# fight. Prettier is kept only for the types ESLint does not format (CSS/HTML,
+# e.g. a GNOME `stylesheet.css`).
+**/*.ts
+**/*.js
+**/*.mjs
+**/*.cjs
+**/*.json
+**/*.jsonc
+**/*.yml
+**/*.yaml
+
+# Hand-maintained docs and user-provided static assets
+**/*.md
+assets/
+
+# Generated / vendored
+node_modules/
+gnome-extension/dist/
+package-lock.json
+*.shell-extension.zip

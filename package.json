@@ -1,0 +1,39 @@
+{
+  "name": "hibernate-windows-shell-extension",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GNOME Shell extension: adds 'Hibernate' and 'Hibernate → Windows' entries to the power menu for a Linux ⇄ Windows dual-boot hibernate handoff.",
+  "license": "MIT",
+  "homepage": "https://github.com/TheSalaty/dual-boot-hibernation",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TheSalaty/dual-boot-hibernation.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "config": {
+    "uuid": "hibernate-windows@salaty"
+  },
+  "scripts": {
+    "clean": "rm -rf gnome-extension/dist *.shell-extension.zip",
+    "type-check": "tsc --noEmit",
+    "build:ts": "tsc",
+    "build:assets": "node scripts/copy-assets.mjs",
+    "build": "npm run clean && npm run build:ts && npm run build:assets",
+    "pack": "npm run build && node scripts/pack.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@falcondev-oss/configs": "^6.0.6",
+    "@girs/gnome-shell": "^50.0.3",
+    "eslint": "^10.6.0",
+    "prettier": "^3.9.3",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.63.0"
+  }
+}

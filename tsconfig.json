@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "rootDir": "gnome-extension/src",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["@girs/gnome-shell/ambient", "@girs/gnome-shell/extensions/global"],
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "outDir": "gnome-extension/dist/hibernate-windows@salaty",
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true
+  },
+  "include": ["gnome-extension/src/**/*.ts"]
+}

@@ -1,0 +1,8 @@
+# These scripts use the idiomatic `cmd && ok "…" || warn "…"` reporting pattern
+# throughout. The middle command (ok/step/warn/info — plain printf wrappers)
+# never fails, so the "C may run when A is true" caveat does not apply here.
+disable=SC2015
+
+# Scripts source an optional runtime config whose path is dynamic; the source
+# directive is declared inline where relevant.
+external-sources=false
