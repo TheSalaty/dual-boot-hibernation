@@ -14,7 +14,7 @@
     "node": ">=20"
   },
   "config": {
-    "uuid": "hibernate-windows@salaty"
+    "uuid": "hibernate-windows@dualboot"
   },
   "scripts": {
     "clean": "rm -rf gnome-extension/dist *.shell-extension.zip",

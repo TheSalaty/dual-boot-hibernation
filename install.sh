@@ -14,7 +14,7 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUIDE="README.md"
-EXT_UUID="hibernate-windows@salaty"
+EXT_UUID="hibernate-windows@dualboot"
 SCRIPT_PATH="$HOME/.local/bin/hibernate-windows.sh"
 HANDOFF_SRC="$HERE/scripts/hibernate-windows.sh"
 

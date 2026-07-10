@@ -105,16 +105,16 @@ independently of `install.sh` (it is **not** on extensions.gnome.org).
 
 ```bash
 # Option 1 — grab the packaged zip from a GitHub release, then:
-gnome-extensions install --force hibernate-windows@salaty.shell-extension.zip
+gnome-extensions install --force hibernate-windows@dualboot.shell-extension.zip
 
 # Option 2 — build it from source (needs Node ≥ 20):
 npm ci
-npm run pack        # lint-free build -> hibernate-windows@salaty.shell-extension.zip
-gnome-extensions install --force hibernate-windows@salaty.shell-extension.zip
+npm run pack        # lint-free build -> hibernate-windows@dualboot.shell-extension.zip
+gnome-extensions install --force hibernate-windows@dualboot.shell-extension.zip
 ```
 
 Then **log out and back in** (Wayland can't hot-load a new extension) and enable
-it: `gnome-extensions enable hibernate-windows@salaty`.
+it: `gnome-extensions enable hibernate-windows@dualboot`.
 
 `install.sh` does this for you: it prefers a release zip sitting next to it, then
 a local `gnome-extension/dist/`, then builds from source if `npm` is available.
@@ -569,13 +569,13 @@ Install the packaged zip (from a release, or `npm run pack` — see
 [building the extension](#the-gnome-extension-install-a-prebuilt-zip-or-build-it-yourself)):
 
 ```bash
-gnome-extensions install --force hibernate-windows@salaty.shell-extension.zip
+gnome-extensions install --force hibernate-windows@dualboot.shell-extension.zip
 ```
 
 This unpacks it into `~/.local/share/gnome-shell/extensions/` and compiles the
 schema for you.
 
-> Rename the UUID (`hibernate-windows@salaty`) to your own handle if you like —
+> Rename the UUID (`hibernate-windows@dualboot`) to your own handle if you like —
 > it must match the folder name and the `uuid` field in `metadata.json` (and the
 > `config.uuid` in `package.json`).
 
@@ -585,8 +585,8 @@ On **Wayland you must log out and back in** for GNOME to pick up a new extension
 Then:
 
 ```bash
-gnome-extensions enable hibernate-windows@salaty
-gnome-extensions prefs  hibernate-windows@salaty   # open settings
+gnome-extensions enable hibernate-windows@dualboot
+gnome-extensions prefs  hibernate-windows@dualboot   # open settings
 ```
 
 Open the power menu → the two entries appear at the top.
@@ -768,7 +768,7 @@ fi
 
 ```json
 {
-  "uuid": "hibernate-windows@salaty",
+  "uuid": "hibernate-windows@dualboot",
   "name": "Hibernate → Windows",
   "description": "Adds 'Hibernate' and 'Hibernate → Windows' entries to the power menu (freezes Linux and pre-selects Windows for the next boot). Includes a preferences page to hide default power-menu entries.",
   "shell-version": ["48", "49", "50"],

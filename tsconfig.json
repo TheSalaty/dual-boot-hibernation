@@ -9,7 +9,7 @@
     "strict": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
-    "outDir": "gnome-extension/dist/hibernate-windows@salaty",
+    "outDir": "gnome-extension/dist/hibernate-windows@dualboot",
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,

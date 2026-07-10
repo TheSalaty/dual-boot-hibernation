@@ -1,10 +1,10 @@
 {
-  "uuid": "hibernate-windows@salaty",
+  "uuid": "hibernate-windows@dualboot",
   "name": "Hibernate → Windows",
   "description": "Adds 'Hibernate' and 'Hibernate → Windows' entries to the power menu (freezes Linux and pre-selects Windows for the next boot). Includes a preferences page to hide default power-menu entries.",
   "shell-version": ["46", "47", "48", "49", "50"],
   "settings-schema": "org.gnome.shell.extensions.hibernate-windows",
-  "gettext-domain": "hibernate-windows@salaty",
+  "gettext-domain": "hibernate-windows@dualboot",
   "url": "https://github.com/TheSalaty/dual-boot-hibernation",
   "version-name": "1.0.0",
   "version": 1

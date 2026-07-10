@@ -3,7 +3,7 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: hibernate-windows@salaty\n"
+"Project-Id-Version: hibernate-windows@dualboot\n"
 "Report-Msgid-Bugs-To: https://github.com/TheSalaty/dual-boot-hibernation/issues\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
