@@ -11,7 +11,7 @@
     "url": "https://github.com/TheSalaty/dual-boot-hibernation.git"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19"
   },
   "config": {
     "uuid": "hibernate-windows@dualboot"
