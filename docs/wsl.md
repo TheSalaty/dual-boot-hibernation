@@ -14,12 +14,24 @@ setup cannot show is listed under [Not verified](#not-verified).
 | You restarted into Windows with    | Linux in Windows                                          |
 | ---------------------------------- | --------------------------------------------------------- |
 | **Restart → Windows**              | Starts at sign-in. Programs in the Start menu, files editable, services running, packages installable. |
-| **Hibernate → Windows**            | Not started, nothing mounted. A notification says why.    |
+| **Hibernate → Windows**            | Starts at sign-in, **view only**. Programs in the Start menu, files readable, nothing on the disks changes. |
 
-**Frozen means hands off.** While a frozen session exists, nothing may write to
+**Frozen means read-only.** While a frozen session exists, nothing may write to
 the Linux filesystems: the session wakes up with its old view of them, and any
-change made in between corrupts them. A view-only mode for that case is
-planned; until then Windows does not touch a hibernated Linux at all.
+change made in between corrupts them. So in that case:
+
+- The Linux disks are write-blocked as devices, and mounted read-only without
+  replaying a journal. Not one byte changes.
+- Your files can be opened but not saved: Documents, projects, data disks.
+- Programs still start, because what they write themselves (settings, caches,
+  everything hidden in the home folder) goes to a layer in memory. It is thrown
+  away when Windows shuts down or you go back to Linux.
+- Services and timers of the installation do not run. A sync client or a backup
+  must not run a second time on old data.
+
+What follows from the throwaway layer: a new file saved directly in the home
+folder (not in a subfolder) is lost too, and a program that renews a login
+while it runs view only may ask you to sign in again in Linux.
 
 In Windows you get:
 
@@ -27,7 +39,12 @@ In Windows you get:
   *Firefox (Linux)*, with their own icons. They open as normal windows.
 - **Back to Linux** in the Start menu, in the notification area, and optionally
   on the desktop: closes Linux properly, then restarts the machine.
-- **A notification-area icon** that shows whether Linux is running.
+- **A notification-area icon** that shows whether Linux is running, and
+  whether it is view only.
+
+The Start menu entries are shortcuts, created from the `.desktop` files of the
+Linux installation. They are brought up to date at every sign-in and within a
+minute after a program was installed or removed in Linux while Windows runs.
 
 ## Requirements
 
@@ -70,9 +87,11 @@ sign-in
     helper system: os-switch-wsl start
       write-block the disks
       find the Linux root, mount it read-only without journal replay
-      hibernation image in a swap area?  -> stop, detach, tell the user
-      unblock, mount root and the fstab entries read-write
-      start Linux's own systemd in a container  (hardware units masked)
+      hibernation image in a swap area?
+        no:  unblock, mount root and the fstab entries read-write,
+             start Linux's own systemd in a container  (hardware units masked)
+        yes: keep the block, mount everything read-only, put a layer in memory
+             on top, start systemd with only what programs need
     create the Start menu entries from the .desktop files
     stay in the notification area
 ```
@@ -90,6 +109,10 @@ sign-in
   An entry that cannot be mounted is skipped.
 - **Programs** run as services of your user's systemd, with the display, sound
   and GPU libraries of WSLg.
+- **View only** uses overlayfs: the real root below, memory on top. The home
+  folder gets a layer of its own, and every entry in it that is not hidden is
+  put back on top read-only. If the swap area cannot be found, Linux counts as
+  hibernated.
 - **Back to Linux** shuts the container down, unmounts, detaches the disks and
   restarts. A plain Windows restart skips that: for Linux it is like pulling the
   plug. Btrfs and ext4 survive it, running programs lose unsaved work.
@@ -107,8 +130,6 @@ sign-in
 
 ## Planned
 
-- View-only mode while Linux is hibernated: disks write-blocked, files
-  read-only, a throwaway layer for the programs' own settings.
 - `sticky = yes`: Windows restarts, including the ones Windows Update triggers,
   stay in Windows until *Back to Linux*.
 - Setup that stops Windows Update from restarting the machine while you are
@@ -119,4 +140,5 @@ sign-in
 `tests/vm/windows/` builds the test setup: `winvm.sh` installs Windows 11
 (90-day evaluation) unattended in QEMU, `run.sh` runs the scenario above
 against the Linux test machine of `tests/vm/`, including a byte-for-byte
-comparison of the Linux disk around a Windows session with Linux hibernated.
+comparison of the Linux disk around a view-only session that Windows ends
+without stopping Linux.

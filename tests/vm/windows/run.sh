@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end test of the Windows side: a Windows 11 VM with WSL gets the disk
 # of the Linux test VM and has to run that Linux, start its programs, leave it
-# clean, and keep its hands off it while Linux is hibernated.
+# clean, and only look at it, without writing a byte, while Linux is hibernated.
 #
 # Needs both VMs set up and switched off (see ../vm.sh and winvm.sh).
 # shellcheck disable=SC2016  # $… in single quotes runs in the guest on purpose
@@ -71,16 +71,24 @@ $LIN start && $LIN wait-ssh || exit 1
 check "the change made in Windows is there" [ "$($LIN ssh cat from-wsl.txt)" = "$marker" ]
 check "the filesystem reports no errors" $LIN ssh '! sudo journalctl -b -k --no-pager | grep -i -E "btrfs.*(error|corrupt)"'
 
-echo "hibernate Linux, then start Windows"
+echo "hibernate Linux, then start Windows: view only"
+$LIN ssh 'mkdir -p ~/Documents && echo report > ~/Documents/report.txt && sync'
 boot=$($LIN ssh cat /proc/sys/kernel/random/boot_id)
 $LIN ssh 'setsid nohup os-switch hibernate >~/osw.log 2>&1 </dev/null &'
 check "Linux hibernated and powered off" linux_off
 cp --reflink=auto "$BASE/disk.qcow2" "$BASE/disk.before.qcow2"
 $WIN start && $WIN wait-ssh 40 || exit 1
-sleep 90 # the sign-in task has had its chance
-check "Windows did not start the hibernated Linux" [ "$(linux_state)" = stopped ]
-check "no Start menu entries that could not start" win 'if (Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Linux" -Filter "* (Linux).lnk") { exit 1 }'
-check "the disk is not attached to WSL any more" $WSH <<<'! ls /dev/sd?1 2>/dev/null | grep -q .'
+check "the hibernated Linux starts view only" wait_state view-only 180
+check "its disks are write-blocked" $WSH <<<'for d in $(cat /run/os-switch/disks); do [ "$(blockdev --getro "$d")" = 1 ] || exit 1; done'
+check "its programs are in the Start menu" win 'if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Linux\Calculator (Linux).lnk")) { exit 1 }'
+win '$l = (New-Object -ComObject WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Linux\Calculator (Linux).lnk"); Start-Process $l.TargetPath -ArgumentList $l.Arguments -Wait'
+sleep 8
+check "a program starts" $WSH <<<'os-switch-wsl run pgrep -f gnome-calculator'
+check "files can be read" $WSH <<<'[ "$(os-switch-wsl run cat Documents/report.txt)" = report ] && os-switch-wsl run test -f /mnt/sub/hello.txt'
+check "files cannot be changed" $WSH <<<'! os-switch-wsl run sh -c "echo x >> Documents/report.txt" && ! os-switch-wsl run touch Documents/new.txt && ! os-switch-wsl run sh -c "echo x >> from-wsl.txt" && ! os-switch-wsl run sudo -n touch /mnt/sub/new.txt'
+check "programs can write their settings" $WSH <<<'os-switch-wsl run sh -c "mkdir -p .config && echo x > .config/view-test"'
+check "no service of the installation runs" $WSH <<<'! os-switch-wsl run systemctl is-active -q sshd.service'
+# No detach, no clean stop: the worst case, Windows just goes away.
 win_off
 
 # Windows itself clears the "dirty" flag in the boot sector of the Linux EFI
@@ -95,6 +103,8 @@ check "no byte of the Linux disk changed outside the EFI boot sector" [ "$change
 $LIN start && $LIN wait-ssh || exit 1
 sleep 30
 check "Linux resumed its frozen session" [ "$($LIN ssh cat /proc/sys/kernel/random/boot_id)" = "$boot" ]
+check "what programs wrote in Windows is gone" $LIN ssh '! test -e .config/view-test'
+check "the filesystem reports no errors after resume" $LIN ssh '! sudo journalctl -b -k --no-pager | grep -i -E "btrfs.*(error|corrupt)"'
 $LIN ssh 'sudo systemctl poweroff' 2>/dev/null
 linux_off
 

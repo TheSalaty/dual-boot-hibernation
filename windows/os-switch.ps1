@@ -8,8 +8,9 @@
 #   os-switch.ps1 status       show what is set up and running
 #   os-switch.ps1 uninstall    remove everything again
 #
-# Linux is only started when it was shut down. If it is hibernated, nothing is
-# mounted: a frozen session breaks when its disks change underneath it.
+# Linux that was shut down starts read-write with its services. Linux that is
+# hibernated starts view only: its disks stay write-blocked, because a frozen
+# session breaks when its disks change underneath it.
 param(
     [Parameter(Position = 0)][string]$Command = 'status',
     # install: disk numbers to use instead of the detected ones.
@@ -47,31 +48,36 @@ $RootFsSha256 = '412454ed98025ad9cd910d13f3d448b184e81502baa83180e89f98d0f13674b
 $Texts = @{
     en = @{
         back = 'Back to Linux'; running = 'Linux is running'; refresh = 'Update Linux programs'
-        hibernated = 'Linux is hibernated. Its programs are available after Linux was shut down or restarted into Windows.'
+        view = 'Linux is hibernated: view only'
+        viewLong = 'Linux is hibernated, so its programs run view only. Files cannot be changed, and what programs change in their settings is forgotten afterwards.'
         failed = 'Linux did not start. Run "os-switch.ps1 status" in PowerShell for details.'
         confirm = 'Close all Linux programs and restart into Linux?'
     }
     de = @{
         back = 'Zurück zu Linux'; running = 'Linux läuft'; refresh = 'Linux-Programme aktualisieren'
-        hibernated = 'Linux ist im Ruhezustand. Seine Programme gibt es wieder, wenn Linux heruntergefahren oder nach Windows neu gestartet wurde.'
+        view = 'Linux ist im Ruhezustand: nur ansehen'
+        viewLong = 'Linux ist im Ruhezustand, seine Programme laufen deshalb im Nur-Ansehen-Modus. Dateien lassen sich nicht ändern, und was Programme an ihren Einstellungen ändern, ist danach vergessen.'
         failed = 'Linux ist nicht gestartet. Details zeigt "os-switch.ps1 status" in der PowerShell.'
         confirm = 'Alle Linux-Programme schließen und nach Linux neu starten?'
     }
     pt = @{
         back = 'Voltar ao Linux'; running = 'O Linux está em execução'; refresh = 'Atualizar programas do Linux'
-        hibernated = 'O Linux está hibernado. Os programas ficam disponíveis depois de desligar o Linux ou reiniciar para o Windows.'
+        view = 'O Linux está hibernado: somente leitura'
+        viewLong = 'O Linux está hibernado, por isso os programas funcionam em modo somente leitura. Os arquivos não podem ser alterados, e o que os programas mudarem nas configurações será esquecido depois.'
         failed = 'O Linux não iniciou. Execute "os-switch.ps1 status" no PowerShell para detalhes.'
         confirm = 'Fechar todos os programas do Linux e reiniciar no Linux?'
     }
     es = @{
         back = 'Volver a Linux'; running = 'Linux está en ejecución'; refresh = 'Actualizar programas de Linux'
-        hibernated = 'Linux está hibernado. Sus programas estarán disponibles cuando Linux se haya apagado o reiniciado hacia Windows.'
+        view = 'Linux está hibernado: solo lectura'
+        viewLong = 'Linux está hibernado, por eso sus programas funcionan en modo de solo lectura. Los archivos no se pueden cambiar, y lo que los programas cambien en su configuración se olvida después.'
         failed = 'Linux no se inició. Ejecuta "os-switch.ps1 status" en PowerShell para ver detalles.'
         confirm = '¿Cerrar todos los programas de Linux y reiniciar en Linux?'
     }
     fr = @{
         back = 'Retour à Linux'; running = 'Linux est en cours d''exécution'; refresh = 'Mettre à jour les programmes Linux'
-        hibernated = 'Linux est en hibernation. Ses programmes seront disponibles après l''arrêt de Linux ou un redémarrage vers Windows.'
+        view = 'Linux est en hibernation : lecture seule'
+        viewLong = 'Linux est en hibernation, ses programmes fonctionnent donc en lecture seule. Les fichiers ne peuvent pas être modifiés, et ce que les programmes changent dans leurs réglages est oublié ensuite.'
         failed = 'Linux n''a pas démarré. Lancez « os-switch.ps1 status » dans PowerShell pour les détails.'
         confirm = 'Fermer tous les programmes Linux et redémarrer sous Linux ?'
     }
@@ -215,7 +221,7 @@ function Install-All {
 }
 
 # Attach the disks and start Linux. Returns the helper's exit code:
-# 0 running, 3 hibernated (nothing mounted), anything else failed.
+# 0 running (read-write or view only), anything else failed.
 function Start-Linux {
     Assert-Admin
     foreach ($disk in Resolve-Disks) {
@@ -263,6 +269,7 @@ function Update-StartMenu {
     # Entries of programs that were uninstalled in Linux.
     Get-ChildItem $MenuDir -Filter *.lnk | Where-Object { $kept -notcontains $_.Name } | Remove-Item
     Write-Host "$($kept.Count - 1) Linux programs in the Start menu."
+    $script:AppStamp = Invoke-Linux $Helper stamp
 }
 
 # The sign-in task: start Linux, then stay in the notification area. The tray
@@ -286,7 +293,8 @@ function Start-Session {
     }
     $tray = New-Object System.Windows.Forms.NotifyIcon
     $tray.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Get-Wslg))
-    $state = if ($code -eq 0) { Get-Text running } elseif ($code -eq 3) { Get-Text hibernated } else { Get-Text failed }
+    $viewOnly = $code -eq 0 -and (Invoke-Linux $Helper status) -eq 'view-only'
+    $state = if ($viewOnly) { Get-Text view } elseif ($code -eq 0) { Get-Text running } else { Get-Text failed }
     $tray.Text = $state.Substring(0, [Math]::Min(63, $state.Length))
     $menu = New-Object System.Windows.Forms.ContextMenuStrip
     $back = $menu.Items.Add((Get-Text back))
@@ -300,10 +308,22 @@ function Start-Session {
     }
     $tray.ContextMenuStrip = $menu
     $tray.Visible = $true
-    if ($code -ne 0) { $tray.ShowBalloonTip(15000, 'os-switch', $state, 'Warning') }
+    if ($viewOnly) { $tray.ShowBalloonTip(15000, 'os-switch', (Get-Text viewLong), 'Info') }
+    elseif ($code -ne 0) { $tray.ShowBalloonTip(15000, 'os-switch', $state, 'Warning') }
+    # Programs installed or removed in Linux meanwhile: keep the Start menu in step.
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 60000
+    $timer.add_Tick({
+            try {
+                $now = Invoke-Linux $Helper stamp
+                if ($now -and $now -ne $script:AppStamp) { Update-StartMenu }
+            } catch { }
+        })
+    if ($code -eq 0) { $timer.Start() }
     try {
         [System.Windows.Forms.Application]::Run()
     } finally {
+        $timer.Dispose()
         $tray.Dispose()
         if ($keepAlive -and -not $keepAlive.HasExited) { $keepAlive.Kill() }
     }

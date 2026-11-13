@@ -10,14 +10,23 @@
 #   os-switch-wsl stop             shut it down and release the disks
 #   os-switch-wsl status           say whether it is running
 #
-# Exit codes: 0 ok, 1 error, 3 Linux is hibernated (must not be written to),
-# 4 no Linux installation found.
+#   os-switch-wsl stamp            a fingerprint that changes when applications do
+#
+# Linux that was shut down is started read-write, with its services. Linux
+# that is hibernated is started "view only": its disks stay write-blocked,
+# files can be read but not changed, and whatever programs write (settings,
+# caches) lands in a layer in memory that is thrown away afterwards. A frozen
+# session breaks when its disks change underneath it.
+#
+# Exit codes: 0 ok, 1 error, 4 no Linux installation found.
 set -eu
 
 REAL=/real
 PROBE=/mnt/os-switch-probe
 STATE=/run/os-switch
 INSIDE=/run/os-switch # the same path inside the container holds the WSLg sockets
+LOWER=$STATE/lower     # view only: the real root, read-only
+LAYER=$STATE/layer     # view only: memory that takes all writes
 
 # Units that need real hardware or would fight with Windows over it.
 MASKED="display-manager.service gdm.service sddm.service lightdm.service greetd.service
@@ -49,14 +58,23 @@ attached_disks() {
     done
 }
 
-# Mount a candidate read-only without replaying its journal: nothing is written.
-probe_mount() { # device fstype [extra options]
-    mkdir -p "$PROBE"
-    case "$2" in
-        btrfs) mount -t btrfs -o "ro,rescue=nologreplay${3:+,$3}" "$1" "$PROBE" 2>/dev/null ;;
-        ext4) mount -t ext4 -o "ro,noload" "$1" "$PROBE" 2>/dev/null ;;
-        *) return 1 ;;
+# Mount options that write nothing at all: read-only, and the journal is not
+# replayed. Of the options in fstab only the choice of subvolume is kept.
+view_options() { # fstype [fstab options]
+    case "$1" in
+        btrfs) base=ro,rescue=nologreplay ;;
+        ext4 | ext3 | ext2) base=ro,noload ;;
+        xfs) base=ro,norecovery ;;
+        *) base=ro ;;
     esac
+    sub=$(echo "${2:-}" | tr ',' '\n' | grep -E '^subvol(id)?=' | head -n 1 || true)
+    echo "$base${sub:+,$sub}"
+}
+
+probe_mount() { # device fstype [subvolume option]
+    mkdir -p "$PROBE"
+    case "$2" in btrfs | ext4) ;; *) return 1 ;; esac
+    mount -t "$2" -o "$(view_options "$2" "${3:-}")" "$1" "$PROBE" 2>/dev/null
 }
 probe_umount() { umount "$PROBE" 2>/dev/null || true; }
 is_root_fs() { [ -x "$PROBE/usr/lib/systemd/systemd" ] && [ -f "$PROBE/etc/fstab" ]; }
@@ -127,7 +145,7 @@ desktop_user() { awk -F: '$3 == 1000 { print $1; exit }' "$1/etc/passwd"; }
 # systemd ignores fstab entries for devices when it runs in a container, so
 # /home, /boot/efi, data disks and the like are mounted here. An entry that
 # cannot be mounted is skipped: it must never keep Linux from starting.
-mount_fstab() {
+mount_fstab() { # mode
     handed_over=$(cat "$STATE/disks") # listed by start, before the root was mounted
     grep -v '^[[:space:]]*#' "$REAL/etc/fstab" | while read -r what where type opts _; do
         case "$type" in btrfs | ext4 | ext3 | ext2 | xfs | f2fs | vfat | exfat) ;; *) continue ;; esac
@@ -147,14 +165,58 @@ mount_fstab() {
         fi
         # Options meant for systemd or for mount(8), not for the filesystem.
         clean=$(echo "$opts" | tr ',' '\n' | grep -v -E '^(x-.*|nofail|auto|_netdev|users?|nouser|owner|group|comment=.*)$' | tr '\n' ',' | sed 's/,$//')
+        [ "$1" = view ] && clean=$(view_options "$type" "$opts")
         mount -t "$type" -o "${clean:-defaults}" "$dev" "$REAL$where" || say "could not mount $where"
     done
 }
 
+# View only: the user's own files stay read-only, so nobody saves work into a
+# layer that is thrown away. Programs still need to write their settings and
+# caches: those (everything hidden in the home folder) go to the layer.
+view_home() {
+    home=$(awk -F: '$3 == 1000 { print $6; exit }' "$REAL/etc/passwd")
+    [ -n "$home" ] && [ -d "$REAL$home" ] || return 0
+    mkdir -p "$STATE/home" "$LAYER/home" "$LAYER/home-work"
+    mount --rbind "$REAL$home" "$STATE/home"
+    chown "$(stat -c %u:%g "$STATE/home")" "$LAYER/home"
+    chmod "$(stat -c %a "$STATE/home")" "$LAYER/home"
+    mount -t overlay overlay -o "lowerdir=$STATE/home,upperdir=$LAYER/home,workdir=$LAYER/home-work" "$REAL$home"
+    for entry in "$STATE/home"/*; do # the pattern leaves hidden entries out
+        [ -e "$entry" ] || continue
+        mount --rbind "$entry" "$REAL$home/${entry##*/}" && mount -o remount,bind,ro "$REAL$home/${entry##*/}"
+    done
+}
+
+# View only: no services of the installation, no timers. They would run a
+# second time on old data (a sync client, a backup, containers). Only what
+# programs need: the message bus, logins, the user's own systemd.
+view_units() {
+    mkdir -p "$REAL/etc/systemd/system/user@.service.d" "$REAL/etc/systemd/user"
+    cat >"$REAL/etc/systemd/system/os-switch-view.target" <<'UNIT'
+[Unit]
+Description=Linux programs inside Windows, view only
+Requires=basic.target
+Wants=dbus.socket systemd-logind.service systemd-user-sessions.service
+After=basic.target systemd-user-sessions.service
+UNIT
+    cat >"$REAL/etc/systemd/system/user@.service.d/os-switch-view.conf" <<'UNIT'
+[Service]
+ExecStart=
+ExecStart=/usr/lib/systemd/systemd --user --unit=basic.target
+UNIT
+    ln -sf /dev/null "$REAL/etc/systemd/user/timers.target"
+}
+
 # PID 1 of the container: set up its view of the world, then become systemd.
-container_init() {
+container_init() { # mode
     mount --make-rprivate /
-    mount_fstab
+    mount_fstab "$1"
+    extra=""
+    if [ "$1" = view ]; then
+        view_home
+        view_units
+        extra="systemd.unit=os-switch-view.target systemd.mask=timers.target"
+    fi
     mount -t proc proc "$REAL/proc"
     mount -t sysfs -o ro sysfs "$REAL/sys"
     mount -t cgroup2 cgroup2 "$REAL/sys/fs/cgroup"
@@ -172,7 +234,7 @@ container_init() {
     for unit in $MASKED; do masks="$masks systemd.mask=$unit"; done
     # shellcheck disable=SC2086  # one argument per mask
     exec env -i container=wsl PATH=/usr/local/sbin:/usr/local/bin:/usr/bin \
-        /usr/lib/systemd/systemd --system $masks
+        /usr/lib/systemd/systemd --system $masks $extra
 }
 
 in_container() { nsenter -t "$(cat "$STATE/pid")" -m -p -u -i -- "$@"; }
@@ -193,14 +255,22 @@ start() {
     state=$(hibernated "$dev" "$type")
     umount "$PROBE.top" 2>/dev/null || true
     probe_umount
-    case "$state" in
-        yes) die "Linux is hibernated on $dev. It must not be written to; view-only mode is not built yet." 3 ;;
-        unknown) die "cannot tell whether Linux on $dev is hibernated (swap area not found); not touching it." 3 ;;
-    esac
-
-    for d in $disks; do blockdev --setrw "$d" 2>/dev/null || true; done
-    mount -t "$type" -o "$opts" "$dev" "$REAL" || die "cannot mount $dev"
-    unshare -m -p -u -i -f "$0" container-init >"$STATE/container.log" 2>&1 </dev/null &
+    if [ "$state" = no ]; then
+        mode=full
+        for d in $disks; do blockdev --setrw "$d" 2>/dev/null || true; done
+        mount -t "$type" -o "$opts" "$dev" "$REAL" || die "cannot mount $dev"
+    else
+        # Hibernated, or no way to tell: the disks stay write-blocked.
+        mode=view
+        mkdir -p "$LOWER" "$LAYER"
+        mount -t "$type" -o "$(view_options "$type" "$opts")" "$dev" "$LOWER" || die "cannot mount $dev"
+        mount -t tmpfs -o mode=755 tmpfs "$LAYER"
+        mkdir -p "$LAYER/root" "$LAYER/root-work"
+        mount -t overlay overlay -o "lowerdir=$LOWER,upperdir=$LAYER/root,workdir=$LAYER/root-work" "$REAL" ||
+            die "cannot put the throwaway layer over $dev"
+    fi
+    echo "$mode" >"$STATE/mode"
+    unshare -m -p -u -i -f "$0" container-init "$mode" >"$STATE/container.log" 2>&1 </dev/null &
     outer=$!
     pid=""
     for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -220,7 +290,7 @@ start() {
     in_container /bin/sh -c "[ -r /etc/resolv.conf ] || {
         target=\$(readlink -m /etc/resolv.conf); mkdir -p \"\$(dirname \"\$target\")\"
         cp $INSIDE/resolv.conf \"\$target\"; }" || true
-    say "Linux started from $dev ($s)"
+    say "Linux started from $dev ($mode, $s)"
 }
 
 run() {
@@ -342,9 +412,25 @@ stop() {
         for _ in $(seq 60); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
         kill -9 "$pid" 2>/dev/null || true
     fi
-    rm -f "$STATE/pid"
+    rm -f "$STATE/pid" "$STATE/mode"
     sync
-    umount -R "$REAL" 2>/dev/null || umount -l "$REAL" 2>/dev/null || true
+    for m in "$REAL" "$LOWER" "$LAYER"; do
+        mountpoint -q "$m" || continue
+        umount -R "$m" 2>/dev/null || umount -l "$m" 2>/dev/null || true
+    done
+}
+
+# Changes whenever an application is installed, removed or updated.
+stamp() {
+    running || return 0
+    # shellcheck disable=SC2086  # several directories
+    in_container /bin/sh -c "ls -l $APP_DIRS /home/*/.local/share/applications 2>/dev/null" | md5sum | cut -c1-32
+}
+
+status() {
+    if ! running; then echo stopped
+    elif [ "$(cat "$STATE/mode" 2>/dev/null)" = view ]; then echo view-only
+    else echo running; fi
 }
 
 case "${1:-}" in
@@ -353,7 +439,8 @@ case "${1:-}" in
     apps) shift; apps "$@" ;;
     launch) launch "$2" ;;
     stop) stop ;;
-    status) if running; then echo running; else echo stopped; fi ;;
-    container-init) container_init ;;
-    *) die "usage: os-switch-wsl start|run <command…>|apps [dir]|launch <id>|stop|status" 2 ;;
+    status) status ;;
+    stamp) stamp ;;
+    container-init) container_init "${2:-full}" ;;
+    *) die "usage: os-switch-wsl start|run <command…>|apps [dir]|launch <id>|stop|status|stamp" 2 ;;
 esac
