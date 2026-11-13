@@ -1,0 +1,359 @@
+#!/bin/sh
+# os-switch-wsl: runs as root in the small helper distribution inside WSL.
+# It finds the real Linux installation on the disks Windows attached, starts
+# it as a container (its own systemd, its own services) and runs programs in it.
+#
+#   os-switch-wsl start            find, check and start the Linux installation
+#   os-switch-wsl run <command…>   run a command there as the desktop user
+#   os-switch-wsl apps [dir]       list the desktop applications; write icons to dir
+#   os-switch-wsl launch <id>      start a desktop application
+#   os-switch-wsl stop             shut it down and release the disks
+#   os-switch-wsl status           say whether it is running
+#
+# Exit codes: 0 ok, 1 error, 3 Linux is hibernated (must not be written to),
+# 4 no Linux installation found.
+set -eu
+
+REAL=/real
+PROBE=/mnt/os-switch-probe
+STATE=/run/os-switch
+INSIDE=/run/os-switch # the same path inside the container holds the WSLg sockets
+
+# Units that need real hardware or would fight with Windows over it.
+MASKED="display-manager.service gdm.service sddm.service lightdm.service greetd.service
+NetworkManager.service NetworkManager-wait-online.service wpa_supplicant.service iwd.service
+systemd-networkd.service systemd-networkd-wait-online.service systemd-resolved.service
+systemd-timesyncd.service chronyd.service bluetooth.service systemd-udevd.service
+systemd-udev-trigger.service systemd-rfkill.service systemd-backlight@.service
+systemd-hibernate-resume.service tlp.service thermald.service power-profiles-daemon.service
+fwupd.service fstrim.timer nvidia-persistenced.service nvidia-powerd.service
+os-switch-boot.service os-switch-resume.service os-switch-pre-sleep.service
+plymouth-start.service plymouth-quit.service plymouth-quit-wait.service plymouth-read-write.service
+getty@tty1.service console-getty.service"
+
+say() { echo "os-switch-wsl: $*" >&2; }
+die() { say "$1"; exit "${2:-1}"; }
+
+running() { [ -f "$STATE/pid" ] && kill -0 "$(cat "$STATE/pid")" 2>/dev/null; }
+
+# The disks Windows handed over, with their partitions. Inside WSL every disk
+# is a SCSI disk. WSL's own disks hold one filesystem each and no partition
+# table, so a disk counts when it has partitions and nothing of it is in use.
+attached_disks() {
+    for whole in /dev/sd[a-z]; do
+        [ -b "$whole" ] && [ -b "${whole}1" ] || continue
+        grep -q "^$whole" /proc/mounts && continue
+        grep -q "^$whole" /proc/swaps && continue
+        echo "$whole"
+        for part in "$whole"[0-9]*; do echo "$part"; done
+    done
+}
+
+# Mount a candidate read-only without replaying its journal: nothing is written.
+probe_mount() { # device fstype [extra options]
+    mkdir -p "$PROBE"
+    case "$2" in
+        btrfs) mount -t btrfs -o "ro,rescue=nologreplay${3:+,$3}" "$1" "$PROBE" 2>/dev/null ;;
+        ext4) mount -t ext4 -o "ro,noload" "$1" "$PROBE" 2>/dev/null ;;
+        *) return 1 ;;
+    esac
+}
+probe_umount() { umount "$PROBE" 2>/dev/null || true; }
+is_root_fs() { [ -x "$PROBE/usr/lib/systemd/systemd" ] && [ -f "$PROBE/etc/fstab" ]; }
+
+# Prints "device fstype options" of the Linux root and leaves it probe-mounted.
+find_root() {
+    blkid | sed -n 's/^\(\/dev\/[^:]*\):.* TYPE="\(btrfs\|ext4\)".*/\1 \2/p' | while read -r dev type; do
+        grep -q -x -F "$dev" "$STATE/disks" || continue # never one of WSL's own disks
+        for sub in "" "subvol=@" "subvol=@root"; do
+            [ -n "$sub" ] && [ "$type" != btrfs ] && continue
+            probe_mount "$dev" "$type" "$sub" || continue
+            if is_root_fs; then
+                opts=$(awk '$1 !~ /^#/ && $2 == "/" { print $4; exit }' "$PROBE/etc/fstab")
+                [ -n "$opts" ] || opts="${sub:-defaults}"
+                echo "$dev $type $opts"
+                return 0
+            fi
+            probe_umount
+        done
+    done | head -n 1
+}
+
+# A swap area that holds a hibernation image starts with this signature.
+has_image() { [ "$(dd if="$1" bs=1 skip=4086 count=10 2>/dev/null)" = S1SUSPEND ]; }
+
+# "yes", "no" or "unknown" for the probe-mounted root.
+hibernated() { # root-device root-fstype
+    result=no
+    for swap in $(awk '$1 !~ /^#/ && $3 == "swap" { print $1 }' "$PROBE/etc/fstab"); do
+        case "$swap" in
+            UUID=* | PARTUUID=* | LABEL=*) area=$(findfs "$swap" 2>/dev/null) || area="" ;;
+            /dev/*) area=$swap ;;
+            /*) area=$(swap_file "$swap" "$1" "$2") ;;
+            *) area="" ;;
+        esac
+        if [ -z "$area" ] || [ ! -e "$area" ]; then
+            result=unknown
+        elif has_image "$area"; then
+            echo yes
+            return
+        fi
+    done
+    echo "$result"
+}
+
+# Where a swap file is, seen from here. On Btrfs it may live on another
+# subvolume than the root: look that up in fstab and go through the top level.
+swap_file() { # path root-device root-fstype
+    if [ -e "$PROBE$1" ]; then
+        echo "$PROBE$1"
+        return
+    fi
+    [ "$3" = btrfs ] || return 0
+    # Longest mount point in fstab that is a prefix of the path, and its subvolume.
+    hit=$(awk -v p="$1" '$1 !~ /^#/ && $3 == "btrfs" && $2 != "/" && index(p, $2 "/") == 1 {
+        if (length($2) > best) { best = length($2); line = $2 " " $4 } } END { print line }' "$PROBE/etc/fstab")
+    [ -n "$hit" ] || return 0
+    mnt=${hit%% *}
+    sub=$(echo "${hit#* }" | tr ',' '\n' | sed -n 's/^subvol=\/\{0,1\}//p')
+    [ -n "$sub" ] || return 0
+    mkdir -p "$PROBE.top"
+    mountpoint -q "$PROBE.top" || mount -t btrfs -o ro,rescue=nologreplay,subvolid=5 "$2" "$PROBE.top" 2>/dev/null || return 0
+    echo "$PROBE.top/$sub${1#"$mnt"}"
+}
+
+desktop_user() { awk -F: '$3 == 1000 { print $1; exit }' "$1/etc/passwd"; }
+
+# systemd ignores fstab entries for devices when it runs in a container, so
+# /home, /boot/efi, data disks and the like are mounted here. An entry that
+# cannot be mounted is skipped: it must never keep Linux from starting.
+mount_fstab() {
+    handed_over=$(cat "$STATE/disks") # listed by start, before the root was mounted
+    grep -v '^[[:space:]]*#' "$REAL/etc/fstab" | while read -r what where type opts _; do
+        case "$type" in btrfs | ext4 | ext3 | ext2 | xfs | f2fs | vfat | exfat) ;; *) continue ;; esac
+        [ "$where" = / ] && continue
+        case ",$opts," in *,noauto,*) continue ;; esac
+        case "$what" in
+            *=) dev="" ;; # an empty UUID or label would match some arbitrary device
+            UUID=* | LABEL=* | PARTUUID=* | PARTLABEL=*) dev=$(findfs "$what" 2>/dev/null) || dev="" ;;
+            /dev/*) dev=$what ;;
+            *) dev="" ;;
+        esac
+        # Only the disks Windows handed over, never one of WSL's own.
+        echo "$handed_over" | grep -q -x -F "$dev" || dev=""
+        if [ -z "$dev" ] || [ ! -b "$dev" ]; then
+            say "not mounting $where: $what is not on the disks Windows handed over"
+            continue
+        fi
+        # Options meant for systemd or for mount(8), not for the filesystem.
+        clean=$(echo "$opts" | tr ',' '\n' | grep -v -E '^(x-.*|nofail|auto|_netdev|users?|nouser|owner|group|comment=.*)$' | tr '\n' ',' | sed 's/,$//')
+        mount -t "$type" -o "${clean:-defaults}" "$dev" "$REAL$where" || say "could not mount $where"
+    done
+}
+
+# PID 1 of the container: set up its view of the world, then become systemd.
+container_init() {
+    mount --make-rprivate /
+    mount_fstab
+    mount -t proc proc "$REAL/proc"
+    mount -t sysfs -o ro sysfs "$REAL/sys"
+    mount -t cgroup2 cgroup2 "$REAL/sys/fs/cgroup"
+    mount --rbind /dev "$REAL/dev"
+    mount -t tmpfs -o mode=755,nosuid,nodev tmpfs "$REAL/run"
+    mkdir -p "$REAL$INSIDE/wslg" "$REAL$INSIDE/wsl-lib" "$REAL$INSIDE/old"
+    [ -d /mnt/wslg ] && mount --rbind /mnt/wslg "$REAL$INSIDE/wslg"
+    [ -d /usr/lib/wsl ] && mount --rbind /usr/lib/wsl "$REAL$INSIDE/wsl-lib"
+    cp /etc/resolv.conf "$REAL$INSIDE/resolv.conf" 2>/dev/null || true
+    cd "$REAL"
+    pivot_root . "${INSIDE#/}/old"
+    cd /
+    umount -l "$INSIDE/old"
+    masks=""
+    for unit in $MASKED; do masks="$masks systemd.mask=$unit"; done
+    # shellcheck disable=SC2086  # one argument per mask
+    exec env -i container=wsl PATH=/usr/local/sbin:/usr/local/bin:/usr/bin \
+        /usr/lib/systemd/systemd --system $masks
+}
+
+in_container() { nsenter -t "$(cat "$STATE/pid")" -m -p -u -i -- "$@"; }
+
+start() {
+    if running; then return 0; fi
+    mkdir -p "$STATE" "$REAL"
+    # Until it is clear that Linux is not hibernated, nothing may write to the
+    # attached disks: block writes at device level while looking.
+    disks=$(attached_disks)
+    echo "$disks" >"$STATE/disks"
+    for d in $disks; do blockdev --setro "$d" 2>/dev/null || true; done
+    found=$(find_root)
+    [ -n "$found" ] || die "no Linux installation found on the attached disks" 4
+    # shellcheck disable=SC2086
+    set -- $found
+    dev=$1 type=$2 opts=$3
+    state=$(hibernated "$dev" "$type")
+    umount "$PROBE.top" 2>/dev/null || true
+    probe_umount
+    case "$state" in
+        yes) die "Linux is hibernated on $dev. It must not be written to; view-only mode is not built yet." 3 ;;
+        unknown) die "cannot tell whether Linux on $dev is hibernated (swap area not found); not touching it." 3 ;;
+    esac
+
+    for d in $disks; do blockdev --setrw "$d" 2>/dev/null || true; done
+    mount -t "$type" -o "$opts" "$dev" "$REAL" || die "cannot mount $dev"
+    unshare -m -p -u -i -f "$0" container-init >"$STATE/container.log" 2>&1 </dev/null &
+    outer=$!
+    pid=""
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pid=$(pgrep -P "$outer" 2>/dev/null | head -n 1) && [ -n "$pid" ] && break
+        sleep 0.3
+    done
+    [ -n "$pid" ] || die "the container did not start"
+    echo "$pid" >"$STATE/pid"
+
+    # Wait until systemd inside has finished starting (or says what failed).
+    for _ in $(seq 120); do
+        s=$(in_container /usr/bin/systemctl is-system-running 2>/dev/null || true)
+        case "$s" in running | degraded) break ;; esac
+        sleep 0.5
+    done
+    # Name resolution: NetworkManager and resolved are masked, use Windows' DNS.
+    in_container /bin/sh -c "[ -r /etc/resolv.conf ] || {
+        target=\$(readlink -m /etc/resolv.conf); mkdir -p \"\$(dirname \"\$target\")\"
+        cp $INSIDE/resolv.conf \"\$target\"; }" || true
+    say "Linux started from $dev ($s)"
+}
+
+run() {
+    running || start
+    user=$(in_container /bin/sh -c "awk -F: '\$3 == 1000 { print \$1; exit }' /etc/passwd")
+    [ -n "$user" ] || die "no desktop user (uid 1000) in the Linux installation"
+    # X11 programs look for the display socket in /tmp, where systemd keeps an
+    # empty directory of its own.
+    # A login session for the user that lasts as long as Linux runs here:
+    # without one, systemd stops the user's services (and with them the
+    # programs started from Windows) as soon as a command returns.
+    in_container /bin/sh -c "mountpoint -q /tmp/.X11-unix || {
+        mkdir -p /tmp/.X11-unix; mount --bind $INSIDE/wslg/.X11-unix /tmp/.X11-unix; }
+        systemctl is-active -q os-switch-session.service ||
+            systemd-run --quiet --collect --unit=os-switch-session -p PAMName=login -p User=$user \
+                /usr/bin/sleep infinity
+        for _ in 1 2 3 4 5 6 7 8 9 10; do [ -S /run/user/1000/bus ] && break; sleep 0.3; done" 2>/dev/null || true
+    in_container /usr/bin/runuser -u "$user" -- /usr/bin/env \
+        DISPLAY=:0 WAYLAND_DISPLAY="$INSIDE/wslg/runtime-dir/wayland-0" \
+        PULSE_SERVER="unix:$INSIDE/wslg/PulseServer" \
+        XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
+        XDG_SESSION_TYPE=wayland LD_LIBRARY_PATH="$INSIDE/wsl-lib/lib" \
+        /bin/sh -lc 'cd; exec "$@"' sh "$@"
+}
+
+APP_DIRS="/usr/share/applications /usr/local/share/applications /var/lib/flatpak/exports/share/applications"
+
+# One line per application: id <TAB> name <TAB> icon file name (may be empty).
+# With a directory as argument, an .ico file per application is written there.
+apps() {
+    running || start
+    icons=${1:-}
+    in_container /bin/sh -c '
+        for f in '"$(echo "$APP_DIRS" | sed 's/\([^ ]*\)/\1\/*.desktop/g')"' /home/*/.local/share/applications/*.desktop; do
+            [ -f "$f" ] || continue
+            awk -F= -v id="$(basename "$f" .desktop)" '"'"'
+                /^\[/ { main = ($0 == "[Desktop Entry]") }
+                main && $1 == "Name" && !name { name = substr($0, 6) }
+                main && $1 == "Icon" && !icon { icon = substr($0, 6) }
+                main && $1 == "Type" { type = $2 }
+                main && ($1 == "NoDisplay" || $1 == "Hidden" || $1 == "Terminal") && $2 == "true" { skip = 1 }
+                main && $1 == "Exec" { exec = 1 }
+                END { if (type == "Application" && exec && !skip && name) print id "\t" name "\t" icon }'"'"' "$f"
+        done' | while IFS="$(printf '\t')" read -r id name icon; do
+        ico=""
+        if [ -n "$icons" ] && [ -n "$icon" ] && write_ico "$icon" "$icons/$id.ico"; then ico="$id.ico"; fi
+        printf '%s\t%s\t%s\n' "$id" "$name" "$ico"
+    done
+}
+
+# Shell snippet that prints the best file for an icon name: a PNG of at most
+# 256 pixels, else a scalable one.
+icon_lookup() {
+    cat <<SNIPPET
+i='$1'
+case "\$i" in /*) [ -f "\$i" ] && echo "\$i"; exit ;; "") exit ;; esac
+for t in hicolor Adwaita breeze; do
+    for d in 256x256 128x128 96x96 64x64 48x48 scalable; do
+        for e in png svg; do
+            f=/usr/share/icons/\$t/\$d/apps/\$i.\$e
+            [ -f "\$f" ] && { echo "\$f"; exit; }
+        done
+    done
+done
+for e in png svg; do [ -f "/usr/share/pixmaps/\$i.\$e" ] && { echo "/usr/share/pixmaps/\$i.\$e"; exit; }; done
+SNIPPET
+}
+
+# Write a Windows icon: an .ico file may simply wrap one PNG of up to 256 px.
+write_ico() { # icon-name target-file
+    file=$(in_container /bin/sh -c "$(icon_lookup "$1")" < /dev/null) || return 1
+    [ -n "$file" ] || return 1
+    png=$STATE/icon.png
+    case "$file" in
+        *.svg) in_container /usr/bin/rsvg-convert -w 256 -h 256 "$file" < /dev/null > "$png" 2>/dev/null || return 1 ;;
+        *) in_container /bin/cat "$file" < /dev/null > "$png" || return 1 ;;
+    esac
+    [ "$(dd if="$png" bs=1 skip=1 count=3 2>/dev/null)" = PNG ] || return 1
+    # Width and height are big-endian at offset 16 and 20; only up to 256 fits.
+    # shellcheck disable=SC2046  # eight separate numbers
+    set -- "$2" $(od -An -tu1 -j16 -N8 "$png")
+    [ "$2$3$6$7" = 0000 ] || return 1
+    { [ "$4" -eq 0 ] || { [ "$4" -eq 1 ] && [ "$5" -eq 0 ]; }; } || return 1
+    { [ "$8" -eq 0 ] || { [ "$8" -eq 1 ] && [ "$9" -eq 0 ]; }; } || return 1
+    size=$(wc -c < "$png")
+    {
+        printf '\000\000\001\000\001\000'
+        byte "$5"; byte "$9"
+        printf '\000\000\001\000\040\000'
+        byte $((size & 255)); byte $((size >> 8 & 255)); byte $((size >> 16 & 255)); byte $((size >> 24 & 255))
+        printf '\026\000\000\000'
+        cat "$png"
+    } > "$1"
+}
+# shellcheck disable=SC2059  # the format string is the octal escape itself
+byte() { printf "\\$(printf '%03o' "$1")"; }
+
+# Start a desktop application by its id. It runs as a service of the user's
+# own systemd, so it keeps running after the Windows shortcut has returned.
+launch() {
+    run /bin/sh -c '
+        for d in '"$APP_DIRS"' "$HOME/.local/share/applications"; do
+            [ -f "$d/$1.desktop" ] || continue
+            # The command line, without the placeholders for files to open.
+            cmd=$(awk "/^\\[/ { main = (\$0 == \"[Desktop Entry]\") } main && /^Exec=/ { print substr(\$0, 6); exit }" "$d/$1.desktop" |
+                sed "s/%[fFuUdDnNickvm]//g")
+            [ -n "$cmd" ] || break
+            exec systemd-run --user --collect --quiet --working-directory="$HOME" \
+                -E DISPLAY -E WAYLAND_DISPLAY -E PULSE_SERVER -E XDG_SESSION_TYPE -E LD_LIBRARY_PATH \
+                /bin/sh -c "exec $cmd"
+        done
+        echo "no such application: $1" >&2; exit 1' sh "$1"
+}
+
+stop() {
+    if running; then
+        pid=$(cat "$STATE/pid")
+        in_container /usr/bin/systemctl poweroff 2>/dev/null || true
+        for _ in $(seq 60); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+        kill -9 "$pid" 2>/dev/null || true
+    fi
+    rm -f "$STATE/pid"
+    sync
+    umount -R "$REAL" 2>/dev/null || umount -l "$REAL" 2>/dev/null || true
+}
+
+case "${1:-}" in
+    start) start ;;
+    run) shift; run "$@" ;;
+    apps) shift; apps "$@" ;;
+    launch) launch "$2" ;;
+    stop) stop ;;
+    status) if running; then echo running; else echo stopped; fi ;;
+    container-init) container_init ;;
+    *) die "usage: os-switch-wsl start|run <command…>|apps [dir]|launch <id>|stop|status" 2 ;;
+esac
