@@ -3,6 +3,7 @@
   <schema id="org.gnome.shell.extensions.hibernate-windows"
           path="/org/gnome/shell/extensions/hibernate-windows/">
     <key name="show-hibernate-windows" type="b"><default>true</default></key>
+    <key name="show-reboot-windows"    type="b"><default>true</default></key>
     <key name="show-hibernate"         type="b"><default>true</default></key>
     <key name="hide-suspend"           type="b"><default>false</default></key>
     <key name="hide-restart"           type="b"><default>false</default></key>

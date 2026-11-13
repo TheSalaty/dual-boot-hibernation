@@ -1,10 +1,10 @@
 import Gio from 'gi://Gio'
-import GLib from 'gi://GLib'
 import { gettext as _, Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
-const SCRIPT = GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'hibernate-windows.sh'])
+/** Installed by install.sh; does the actual work (see docs/how-it-works.md). */
+const OS_SWITCH = '/usr/local/bin/os-switch'
 
 /**
  * The built-in power-menu entries can only be identified by their (localized)
@@ -13,10 +13,10 @@ const SCRIPT = GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'hibe
  * change. Matching is case-insensitive substring.
  */
 const MATCHERS: Record<string, string[]> = {
-  'hide-suspend': ['bereitschaft', 'suspend'],
-  'hide-restart': ['neustart', 'restart'],
-  'hide-poweroff': ['ausschalten', 'power off'],
-  'hide-logout': ['abmelden', 'log out'],
+  'hide-suspend': ['bereitschaft', 'suspend', 'suspender', 'veille'],
+  'hide-restart': ['neustart', 'restart', 'reiniciar', 'redémarrer'],
+  'hide-poweroff': ['ausschalten', 'power off', 'desligar', 'apagar', 'éteindre'],
+  'hide-logout': ['abmelden', 'log out', 'encerrar sessão', 'cerrar sesión', 'fermer la session'],
 }
 
 /** A single row inside the system power menu. */
@@ -38,6 +38,7 @@ export default class HibernateWindowsExtension extends Extension {
   private _menu?: PowerMenu
   private _winItem?: PopupMenu.PopupMenuItem
   private _hibItem?: PopupMenu.PopupMenuItem
+  private _rebootItem?: PopupMenu.PopupMenuItem
   private _ownItems: PopupMenu.PopupMenuItem[] = []
   private _settingsId = 0
   private _openId = 0
@@ -57,14 +58,18 @@ export default class HibernateWindowsExtension extends Extension {
     }
 
     this._winItem = new PopupMenu.PopupMenuItem(_('Hibernate → Windows'))
-    this._winItem.connect('activate', () => this._spawn([SCRIPT]))
+    this._winItem.connect('activate', () => this._spawn([OS_SWITCH, 'windows']))
+
+    this._rebootItem = new PopupMenu.PopupMenuItem(_('Restart → Windows'))
+    this._rebootItem.connect('activate', () => this._spawn([OS_SWITCH, 'reboot-windows']))
 
     this._hibItem = new PopupMenu.PopupMenuItem(_('Hibernate'))
-    this._hibItem.connect('activate', () => this._spawn(['systemctl', 'hibernate']))
+    this._hibItem.connect('activate', () => this._spawn([OS_SWITCH, 'hibernate']))
 
     this._menu.addMenuItem(this._hibItem, 0)
+    this._menu.addMenuItem(this._rebootItem, 0)
     this._menu.addMenuItem(this._winItem, 0)
-    this._ownItems.push(this._winItem, this._hibItem)
+    this._ownItems.push(this._winItem, this._rebootItem, this._hibItem)
 
     this._settingsId = this._settings.connect('changed', () => this._apply())
     this._openId = this._menu.connect('open-state-changed', (_menu, open) => {
@@ -85,7 +90,7 @@ export default class HibernateWindowsExtension extends Extension {
     // never leaves the user with a permanently missing power option.
     if (this._menu) {
       for (const item of this._menu._getMenuItems()) {
-        if (item === this._winItem || item === this._hibItem)
+        if (this._isOwn(item))
           continue
         const text = item.label?.text?.toLowerCase()
         if (!text)
@@ -100,6 +105,7 @@ export default class HibernateWindowsExtension extends Extension {
 
     this._ownItems = []
     this._winItem = undefined
+    this._rebootItem = undefined
     this._hibItem = undefined
     this._menu = undefined
     this._settings = undefined
@@ -109,14 +115,15 @@ export default class HibernateWindowsExtension extends Extension {
 
   /** Apply the current settings to our own entries and the built-in ones. */
   private _apply(): void {
-    if (!this._menu || !this._settings || !this._winItem || !this._hibItem)
+    if (!this._menu || !this._settings || !this._winItem || !this._hibItem || !this._rebootItem)
       return
 
     this._winItem.visible = this._settings.get_boolean('show-hibernate-windows')
+    this._rebootItem.visible = this._settings.get_boolean('show-reboot-windows')
     this._hibItem.visible = this._settings.get_boolean('show-hibernate')
 
     for (const item of this._menu._getMenuItems()) {
-      if (item === this._winItem || item === this._hibItem)
+      if (this._isOwn(item))
         continue
       const text = item.label?.text?.toLowerCase()
       if (!text)
@@ -128,6 +135,10 @@ export default class HibernateWindowsExtension extends Extension {
         }
       }
     }
+  }
+
+  private _isOwn(item: MenuItemLike): boolean {
+    return this._ownItems.includes(item as unknown as PopupMenu.PopupMenuItem)
   }
 
   /** Locate the private power menu inside the Quick Settings area. */

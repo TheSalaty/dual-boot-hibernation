@@ -15,6 +15,10 @@ msgid "Hibernate → Windows"
 msgstr ""
 
 #: gnome-extension/src/extension.ts gnome-extension/src/prefs.ts
+msgid "Restart → Windows"
+msgstr ""
+
+#: gnome-extension/src/extension.ts gnome-extension/src/prefs.ts
 msgid "Hibernate"
 msgstr ""
 

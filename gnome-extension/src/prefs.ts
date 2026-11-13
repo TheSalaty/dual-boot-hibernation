@@ -19,6 +19,7 @@ export default class HibernateWindowsPrefs extends ExtensionPreferences {
       description: _('Extra entries added to the power menu'),
     })
     own.add(this._switch(settings, 'show-hibernate-windows', _('Hibernate → Windows')))
+    own.add(this._switch(settings, 'show-reboot-windows', _('Restart → Windows')))
     own.add(this._switch(settings, 'show-hibernate', _('Hibernate')))
     page.add(own)
 

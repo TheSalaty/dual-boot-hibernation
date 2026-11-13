@@ -13,6 +13,9 @@ msgstr ""
 msgid "Hibernate → Windows"
 msgstr "Ruhezustand → Windows"
 
+msgid "Restart → Windows"
+msgstr "Neustart → Windows"
+
 msgid "Hibernate"
 msgstr "Ruhezustand"
 

@@ -1,0 +1,48 @@
+#
+# Brazilian Portuguese translation for the Hibernate → Windows GNOME Shell extension.
+# Machine-translated. Corrections are welcome.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: hibernate-windows@dualboot\n"
+"Report-Msgid-Bugs-To: https://github.com/TheSalaty/dual-boot-hibernation/issues\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: pt_BR\n"
+
+msgid "Hibernate → Windows"
+msgstr "Hibernar → Windows"
+
+msgid "Restart → Windows"
+msgstr "Reiniciar → Windows"
+
+msgid "Hibernate"
+msgstr "Hibernar"
+
+msgid "Entries"
+msgstr "Entradas"
+
+msgid "Custom entries"
+msgstr "Entradas personalizadas"
+
+msgid "Extra entries added to the power menu"
+msgstr "Entradas extras adicionadas ao menu de energia"
+
+msgid "Hide default entries"
+msgstr "Ocultar entradas padrão"
+
+msgid "Hide the built-in power-menu entries you don’t need"
+msgstr "Oculte as entradas internas do menu de energia que você não usa"
+
+msgid "Hide Suspend"
+msgstr "Ocultar Suspender"
+
+msgid "Hide Restart"
+msgstr "Ocultar Reiniciar"
+
+msgid "Hide Power Off"
+msgstr "Ocultar Desligar"
+
+msgid "Hide Log Out"
+msgstr "Ocultar Encerrar sessão"

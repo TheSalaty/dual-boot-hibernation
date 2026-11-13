@@ -1,9 +1,9 @@
 {
   "name": "hibernate-windows-shell-extension",
   "type": "module",
-  "version": "1.0.0",
+  "version": "2.0.0-alpha.1",
   "private": true,
-  "description": "GNOME Shell extension: adds 'Hibernate' and 'Hibernate → Windows' entries to the power menu for a Linux ⇄ Windows dual-boot hibernate handoff.",
+  "description": "GNOME Shell extension: power-menu entries for the os-switch Linux ⇄ Windows handoff.",
   "license": "MIT",
   "homepage": "https://github.com/TheSalaty/dual-boot-hibernation",
   "repository": {
