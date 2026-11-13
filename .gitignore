@@ -14,3 +14,6 @@ gschemas.compiled
 # Editor / OS cruft
 *.swp
 .DS_Store
+
+# Rust build output
+target/

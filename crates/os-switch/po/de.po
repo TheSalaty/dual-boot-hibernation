@@ -1,0 +1,150 @@
+# os-switch messages (de).
+msgid ""
+msgstr ""
+"Project-Id-Version: os-switch\n"
+"Report-Msgid-Bugs-To: https://github.com/TheSalaty/dual-boot-hibernation/issues\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de\n"
+
+msgid "The privileged helper is not set up. Run install.sh, then try again."
+msgstr "Der Helfer mit Root-Rechten ist nicht eingerichtet. Führe install.sh aus und versuche es erneut."
+
+msgid "No Windows boot entry was found in the firmware. Run “os-switch status” for details."
+msgstr "In der Firmware wurde kein Windows-Boot-Eintrag gefunden. „os-switch status“ zeigt Details."
+
+msgid "Hibernation is not available. Is the swap file active? Run “os-switch status” for details."
+msgstr "Der Ruhezustand ist nicht verfügbar. Ist die Auslagerungsdatei aktiv? „os-switch status“ zeigt Details."
+
+msgid "A virtual machine is running. A graphics card passed through to it does not survive hibernation. Continue anyway?"
+msgstr "Eine virtuelle Maschine läuft. Eine an sie durchgereichte Grafikkarte übersteht den Ruhezustand nicht. Trotzdem fortfahren?"
+
+msgid "Continue"
+msgstr "Fortfahren"
+
+msgid "Cancel"
+msgstr "Abbrechen"
+
+msgid "Cancelled. Linux keeps running."
+msgstr "Abgebrochen. Linux läuft weiter."
+
+msgid "• (programs of another user)"
+msgstr "• (Programme eines anderen Benutzers)"
+
+msgid "{} is still in use and cannot be unmounted.\n\nThese programs are using it:\n{}\n\nClosing them by force loses unsaved work."
+msgstr "{} wird noch verwendet und kann nicht ausgehängt werden.\n\nDiese Programme greifen darauf zu:\n{}\n\nBeim erzwungenen Schließen geht ungespeicherte Arbeit verloren."
+
+msgid "Close them and continue"
+msgstr "Schließen und fortfahren"
+
+msgid "Could not select Windows for the next start."
+msgstr "Windows konnte nicht für den nächsten Start ausgewählt werden."
+
+msgid "The restart failed. Linux keeps running."
+msgstr "Der Neustart ist fehlgeschlagen. Linux läuft weiter."
+
+msgid "Hibernation failed. Windows was deselected again; Linux keeps running."
+msgstr "Der Ruhezustand ist fehlgeschlagen. Windows wurde wieder abgewählt; Linux läuft weiter."
+
+msgid "Hibernation failed."
+msgstr "Der Ruhezustand ist fehlgeschlagen."
+
+msgid "Boot selection"
+msgstr "Boot-Auswahl"
+
+msgid "Using the GRUB flag on the EFI partition (fallback)."
+msgstr "Verwendet den GRUB-Merker auf der EFI-Partition (Ausweichlösung)."
+
+msgid "EFI partition is mounted."
+msgstr "Die EFI-Partition ist eingehängt."
+
+msgid "EFI partition is not mounted."
+msgstr "Die EFI-Partition ist nicht eingehängt."
+
+msgid "Cannot read the firmware boot entries: {}"
+msgstr "Die Boot-Einträge der Firmware lassen sich nicht lesen: {}"
+
+msgid "Linux entry: {} ({})"
+msgstr "Linux-Eintrag: {} ({})"
+
+msgid "Cannot tell which firmware entry started this Linux."
+msgstr "Es lässt sich nicht feststellen, über welchen Firmware-Eintrag dieses Linux gestartet wurde."
+
+msgid "Windows entry: {} ({})"
+msgstr "Windows-Eintrag: {} ({})"
+
+msgid "No Windows boot entry in the firmware."
+msgstr "Kein Windows-Boot-Eintrag in der Firmware."
+
+msgid "A Windows trip is marked as active."
+msgstr "Ein Windows-Ausflug ist als aktiv markiert."
+
+msgid "Linux starts by default."
+msgstr "Linux startet standardmäßig."
+
+msgid "Windows is first in the boot order, so a Windows restart will not return to Linux."
+msgstr "Windows steht in der Boot-Reihenfolge an erster Stelle; ein Windows-Neustart führt deshalb nicht zurück zu Linux."
+
+msgid "One-time next start: {}"
+msgstr "Einmaliger nächster Start: {}"
+
+msgid "Handoff"
+msgstr "Übergabe"
+
+msgid "Installed at {}."
+msgstr "Installiert unter {}."
+
+msgid "Not installed at {}. Run install.sh."
+msgstr "Nicht unter {} installiert. Führe install.sh aus."
+
+msgid "The privileged helper runs without a password."
+msgstr "Der Helfer mit Root-Rechten läuft ohne Passwort."
+
+msgid "The privileged helper needs a password. Run install.sh to add the sudo rule."
+msgstr "Der Helfer mit Root-Rechten verlangt ein Passwort. install.sh legt die sudo-Regel an."
+
+msgid "Hibernation is available."
+msgstr "Der Ruhezustand ist verfügbar."
+
+msgid "Hibernation is not available (swap or resume settings)."
+msgstr "Der Ruhezustand ist nicht verfügbar (Auslagerung oder Resume-Einstellungen)."
+
+msgid "Could not ask the system whether hibernation is available."
+msgstr "Das System konnte nicht gefragt werden, ob der Ruhezustand verfügbar ist."
+
+msgid "cleans up after waking"
+msgstr "räumt nach dem Aufwachen auf"
+
+msgid "cleans up after a cold start"
+msgstr "räumt nach einem Kaltstart auf"
+
+msgid "{} is enabled ({})."
+msgstr "{} ist aktiviert ({})."
+
+msgid "{} is not enabled ({}). Run install.sh."
+msgstr "{} ist nicht aktiviert ({}). Führe install.sh aus."
+
+msgid "After freezing: restart straight into Windows."
+msgstr "Nach dem Einfrieren: Neustart direkt nach Windows."
+
+msgid "After freezing: power off, the clock switches the machine back on."
+msgstr "Nach dem Einfrieren: ausschalten, die Uhr schaltet den Rechner wieder ein."
+
+msgid "After freezing: power off and wait for the power button."
+msgstr "Nach dem Einfrieren: ausschalten und auf den Einschaltknopf warten."
+
+msgid "Sticky: Windows restarts stay in Windows until Windows asks for Linux."
+msgstr "Klebend: Windows-Neustarts bleiben in Windows, bis Windows Linux anfordert."
+
+msgid "Drives Windows can write to"
+msgstr "Laufwerke, auf die Windows schreiben kann"
+
+msgid "None mounted."
+msgstr "Keine eingehängt."
+
+msgid "{} ({}) is unmounted for the handoff."
+msgstr "{} ({}) wird für die Übergabe ausgehängt."
+
+msgid "{} is in fstab but not mounted."
+msgstr "{} steht in der fstab, ist aber nicht eingehängt."

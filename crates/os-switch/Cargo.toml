@@ -1,0 +1,11 @@
+[package]
+name = "os-switch"
+version = "2.0.0-alpha.1"
+edition = "2021"
+description = "Freeze Linux, hop into Windows and come back: the dual-boot handoff core."
+license = "MIT"
+repository = "https://github.com/TheSalaty/dual-boot-hibernation"
+
+# No dependencies on purpose: one small binary that also runs where nothing can
+# be installed through the package manager (SteamOS).
+[dependencies]

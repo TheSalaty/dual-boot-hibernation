@@ -1,0 +1,151 @@
+# os-switch messages (pt_BR).
+# Machine-translated. Corrections are welcome.
+msgid ""
+msgstr ""
+"Project-Id-Version: os-switch\n"
+"Report-Msgid-Bugs-To: https://github.com/TheSalaty/dual-boot-hibernation/issues\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: pt_BR\n"
+
+msgid "The privileged helper is not set up. Run install.sh, then try again."
+msgstr "O auxiliar com privilégios não está configurado. Execute o install.sh e tente de novo."
+
+msgid "No Windows boot entry was found in the firmware. Run “os-switch status” for details."
+msgstr "Nenhuma entrada de inicialização do Windows foi encontrada no firmware. Execute “os-switch status” para ver os detalhes."
+
+msgid "Hibernation is not available. Is the swap file active? Run “os-switch status” for details."
+msgstr "A hibernação não está disponível. O arquivo de swap está ativo? Execute “os-switch status” para ver os detalhes."
+
+msgid "A virtual machine is running. A graphics card passed through to it does not survive hibernation. Continue anyway?"
+msgstr "Há uma máquina virtual em execução. Uma placa de vídeo repassada a ela não sobrevive à hibernação. Continuar mesmo assim?"
+
+msgid "Continue"
+msgstr "Continuar"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Cancelled. Linux keeps running."
+msgstr "Cancelado. O Linux continua em execução."
+
+msgid "• (programs of another user)"
+msgstr "• (programas de outro usuário)"
+
+msgid "{} is still in use and cannot be unmounted.\n\nThese programs are using it:\n{}\n\nClosing them by force loses unsaved work."
+msgstr "{} ainda está em uso e não pode ser desmontado.\n\nEstes programas estão usando a unidade:\n{}\n\nFechá-los à força descarta o trabalho não salvo."
+
+msgid "Close them and continue"
+msgstr "Fechar e continuar"
+
+msgid "Could not select Windows for the next start."
+msgstr "Não foi possível selecionar o Windows para a próxima inicialização."
+
+msgid "The restart failed. Linux keeps running."
+msgstr "A reinicialização falhou. O Linux continua em execução."
+
+msgid "Hibernation failed. Windows was deselected again; Linux keeps running."
+msgstr "A hibernação falhou. O Windows foi desmarcado de novo; o Linux continua em execução."
+
+msgid "Hibernation failed."
+msgstr "A hibernação falhou."
+
+msgid "Boot selection"
+msgstr "Seleção de inicialização"
+
+msgid "Using the GRUB flag on the EFI partition (fallback)."
+msgstr "Usando o sinalizador do GRUB na partição EFI (alternativa)."
+
+msgid "EFI partition is mounted."
+msgstr "A partição EFI está montada."
+
+msgid "EFI partition is not mounted."
+msgstr "A partição EFI não está montada."
+
+msgid "Cannot read the firmware boot entries: {}"
+msgstr "Não foi possível ler as entradas de inicialização do firmware: {}"
+
+msgid "Linux entry: {} ({})"
+msgstr "Entrada do Linux: {} ({})"
+
+msgid "Cannot tell which firmware entry started this Linux."
+msgstr "Não foi possível identificar qual entrada do firmware iniciou este Linux."
+
+msgid "Windows entry: {} ({})"
+msgstr "Entrada do Windows: {} ({})"
+
+msgid "No Windows boot entry in the firmware."
+msgstr "Nenhuma entrada de inicialização do Windows no firmware."
+
+msgid "A Windows trip is marked as active."
+msgstr "Uma ida ao Windows está marcada como ativa."
+
+msgid "Linux starts by default."
+msgstr "O Linux inicia por padrão."
+
+msgid "Windows is first in the boot order, so a Windows restart will not return to Linux."
+msgstr "O Windows está em primeiro na ordem de inicialização, então reiniciar o Windows não volta para o Linux."
+
+msgid "One-time next start: {}"
+msgstr "Próxima inicialização única: {}"
+
+msgid "Handoff"
+msgstr "Transição"
+
+msgid "Installed at {}."
+msgstr "Instalado em {}."
+
+msgid "Not installed at {}. Run install.sh."
+msgstr "Não instalado em {}. Execute o install.sh."
+
+msgid "The privileged helper runs without a password."
+msgstr "O auxiliar com privilégios funciona sem senha."
+
+msgid "The privileged helper needs a password. Run install.sh to add the sudo rule."
+msgstr "O auxiliar com privilégios pede senha. Execute o install.sh para adicionar a regra do sudo."
+
+msgid "Hibernation is available."
+msgstr "A hibernação está disponível."
+
+msgid "Hibernation is not available (swap or resume settings)."
+msgstr "A hibernação não está disponível (swap ou configurações de retomada)."
+
+msgid "Could not ask the system whether hibernation is available."
+msgstr "Não foi possível perguntar ao sistema se a hibernação está disponível."
+
+msgid "cleans up after waking"
+msgstr "limpa após acordar"
+
+msgid "cleans up after a cold start"
+msgstr "limpa após uma inicialização a frio"
+
+msgid "{} is enabled ({})."
+msgstr "{} está ativado ({})."
+
+msgid "{} is not enabled ({}). Run install.sh."
+msgstr "{} não está ativado ({}). Execute o install.sh."
+
+msgid "After freezing: restart straight into Windows."
+msgstr "Após congelar: reiniciar direto no Windows."
+
+msgid "After freezing: power off, the clock switches the machine back on."
+msgstr "Após congelar: desligar; o relógio liga a máquina de novo."
+
+msgid "After freezing: power off and wait for the power button."
+msgstr "Após congelar: desligar e aguardar o botão de energia."
+
+msgid "Sticky: Windows restarts stay in Windows until Windows asks for Linux."
+msgstr "Fixo: reinicializações do Windows permanecem no Windows até que ele peça o Linux."
+
+msgid "Drives Windows can write to"
+msgstr "Unidades em que o Windows pode gravar"
+
+msgid "None mounted."
+msgstr "Nenhuma montada."
+
+msgid "{} ({}) is unmounted for the handoff."
+msgstr "{} ({}) é desmontado para a transição."
+
+msgid "{} is in fstab but not mounted."
+msgstr "{} está no fstab, mas não está montado."
