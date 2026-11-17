@@ -32,6 +32,10 @@ sudo efibootmgr -q -c -d /dev/vda -p 2 -L "Windows Boot Manager" -l '\EFI\Micros
 sudo efibootmgr -q -c -d /dev/vda -p 2 -L "Linux" -l '\EFI\BOOT\BOOTX64.EFI'
 efibootmgr
 
+# For the Windows side: a program to start from the Start menu, and the
+# clipboard tools that offer an image copied in Windows.
+sudo pacman -Sy --noconfirm --needed gnome-calculator wl-clipboard >/dev/null
+
 # An SSH login is not a local seat, so logind would refuse to reboot or
 # hibernate for it. Allow it for the test user.
 pacman -Q polkit >/dev/null 2>&1 || sudo pacman -Sy --noconfirm --needed polkit >/dev/null

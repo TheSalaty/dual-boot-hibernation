@@ -41,6 +41,8 @@ In Windows you get:
   on the desktop: closes Linux properly, then restarts the machine.
 - **A notification-area icon** that shows whether Linux is running, and
   whether it is view only.
+- **Images copied in Windows** can be pasted into Linux programs (needs
+  `wl-clipboard` installed in Linux).
 
 The Start menu entries are shortcuts, created from the `.desktop` files of the
 Linux installation. They are brought up to date at every sign-in and within a
@@ -70,6 +72,9 @@ It finds the disks with Linux partitions, shows them, downloads a 3 MB helper
 system (Alpine Linux, checked against its checksum), and registers a task that
 runs at sign-in. Leave out `-DesktopShortcut` if you don't want *Back to Linux*
 on the desktop.
+
+To update, download the folder again and run the same command: it stops the
+running Linux (close its programs first) and starts it with the new files.
 
 ```powershell
 .\windows\os-switch.ps1 status      # what is set up and running
@@ -113,20 +118,25 @@ sign-in
   folder gets a layer of its own, and every entry in it that is not hidden is
   put back on top read-only. If the swap area cannot be found, Linux counts as
   hibernated.
+- **Images on the clipboard**: WSL offers an image copied in Windows to Linux
+  programs as BMP only, which most of them do not paste. The notification-area
+  process saves it as PNG and `wl-copy` offers that. The Windows clipboard is
+  not changed by it.
 - **Back to Linux** shuts the container down, unmounts, detaches the disks and
   restarts. A plain Windows restart skips that: for Linux it is like pulling the
   plug. Btrfs and ext4 survive it, running programs lose unsaved work.
 
 ## Not verified
 
-- **On real hardware.** Everything above ran in virtual machines only.
-- **Graphics acceleration.** The test machine has no GPU for WSL. With the
-  proprietary Nvidia driver installed in Linux, programs may need a moment of
-  tuning to use WSL's GPU libraries instead.
+- **On more than one real machine.** Restart mode runs on one (Manjaro on two
+  Btrfs disks); view-only mode ran in virtual machines only.
+- **Graphics acceleration in programs.** Linux programs draw with the graphics
+  card of Windows when `eglinfo` (package `mesa-utils`) is installed in Linux
+  and reports WSL's driver as working; otherwise in software. The driver
+  answered on one machine with an Nvidia card; how programs behave with it is
+  not tested.
 - **Games' anti-cheat with WSL enabled.** Riot Vanguard accepted it on one
   machine; that can change with any update.
-- **Several Linux disks.** A second disk with a data filesystem is found and
-  handed over by the same code, but only one disk was tested.
 
 ## Planned
 

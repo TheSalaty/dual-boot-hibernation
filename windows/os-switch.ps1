@@ -194,6 +194,13 @@ function Install-All {
         throw 'WSL is not installed. Run "wsl --install --no-distribution", restart, and try again.'
     }
 
+    # An update: stop the running Linux first, so that it starts with the new files.
+    if ((Test-Path $ConfigFile) -and (Get-ScheduledTask -TaskName $AttachTask -ErrorAction SilentlyContinue)) {
+        Write-Host 'Stopping Linux for the update...'
+        Stop-Linux
+        Stop-ScheduledTask -TaskName $AttachTask
+    }
+
     New-Item -ItemType Directory -Force $InstallDir, $DataDir, (Join-Path $InstallDir 'wsl') | Out-Null
     if ($PSScriptRoot -ne $InstallDir) {
         Copy-Item (Join-Path $PSScriptRoot 'os-switch.ps1') $InstallDir -Force
@@ -320,10 +327,34 @@ function Start-Session {
             } catch { }
         })
     if ($code -eq 0) { $timer.Start() }
+    # An image copied in Windows reaches Linux programs as BMP only, which most
+    # of them do not paste. Save it as PNG and let Linux offer that.
+    Add-Type -Namespace OsSwitch -Name Native -MemberDefinition `
+        '[DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();'
+    $clipFile = Join-Path (Split-Path $IconDir) 'clipboard.png'
+    New-Item -ItemType Directory -Force (Split-Path $IconDir) | Out-Null
+    $clipTimer = New-Object System.Windows.Forms.Timer
+    $clipTimer.Interval = 500
+    $clipTimer.add_Tick({
+            try {
+                $number = [OsSwitch.Native]::GetClipboardSequenceNumber()
+                if ($number -eq $script:ClipNumber) { return }
+                if ([System.Windows.Forms.Clipboard]::ContainsImage()) {
+                    $image = [System.Windows.Forms.Clipboard]::GetImage()
+                    $image.Save($clipFile, [System.Drawing.Imaging.ImageFormat]::Png)
+                    $image.Dispose()
+                    Start-Process wsl.exe -WindowStyle Hidden `
+                        -ArgumentList "-d $Distro -u root --exec $Helper clip-image `"$(ConvertTo-LinuxPath $clipFile)`""
+                }
+                $script:ClipNumber = $number
+            } catch { } # the clipboard was busy: the next tick tries again
+        })
+    if ($code -eq 0) { $clipTimer.Start() }
     try {
         [System.Windows.Forms.Application]::Run()
     } finally {
         $timer.Dispose()
+        $clipTimer.Dispose()
         $tray.Dispose()
         if ($keepAlive -and -not $keepAlive.HasExited) { $keepAlive.Kill() }
     }

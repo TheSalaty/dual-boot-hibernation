@@ -32,6 +32,12 @@ win_off() {
     $WIN running && $WIN stop
     rm -f "$BASE/win/pid"
 }
+# Run something in the desktop session, like a click there would. SSH is a
+# session of its own: what it starts has no windows and no clipboard, and WSL
+# then shows the Linux windows in the wrong place.
+on_desktop() { # task-name program arguments
+    win "\$a = New-ScheduledTaskAction -Execute '$2' -Argument '$3'; \$p = New-ScheduledTaskPrincipal -UserId (whoami) -LogonType Interactive; Register-ScheduledTask -TaskName '$1' -Action \$a -Principal \$p -Force | Out-Null; Start-ScheduledTask '$1'"
+}
 linux_off() { for _ in $(seq 60); do $LIN running || return 0; sleep 2; done; return 1; }
 
 if $LIN running || $WIN running; then echo "switch both VMs off first" >&2; exit 2; fi
@@ -43,6 +49,10 @@ win 'New-Item -ItemType Directory -Force C:\osw\wsl | Out-Null'
 "${SCP[@]}" windows/wsl/os-switch-wsl test@127.0.0.1:C:/osw/wsl/os-switch-wsl
 win "if (Test-Path $INSTALLED) { $PS $INSTALLED uninstall | Out-Null }"
 check "the installer runs" win "$PS C:\\osw\\os-switch.ps1 install -DesktopShortcut"
+# WSL shows windows and shares the clipboard in the session that started it,
+# and the installer has just started it from SSH. Start it again on the desktop.
+win "$PS $INSTALLED detach | Out-Null; wsl --shutdown; Start-ScheduledTask 'os-switch attach'"
+sleep 20
 check "Linux is running in WSL" wait_state running 120
 check "fstab mounts of the Linux installation are there" $WSH <<<'os-switch-wsl run test -f /mnt/sub/hello.txt'
 check "nothing failed to start in Linux" $WSH <<<'[ "$(os-switch-wsl run systemctl is-system-running)" = running ]'
@@ -50,9 +60,16 @@ check "Linux programs are in the Start menu" win 'if (-not (Test-Path "$env:APPD
 check "each has an icon" win 'if (-not (Test-Path "$env:LOCALAPPDATA\os-switch\icons\org.gnome.Calculator.ico")) { exit 1 }'
 
 echo "start a program through its Start menu entry"
-win '$l = (New-Object -ComObject WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Linux\Calculator (Linux).lnk"); Start-Process $l.TargetPath -ArgumentList $l.Arguments -Wait'
+on_desktop start-calculator cmd.exe '/c start "" "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Linux\Calculator (Linux).lnk"'
 sleep 8
 check "the program keeps running after the launcher has returned" $WSH <<<'os-switch-wsl run pgrep -f gnome-calculator'
+
+echo "copy an image in Windows"
+"${SCP[@]}" tests/vm/windows/copy-image.ps1 test@127.0.0.1:C:/osw/copy-image.ps1
+on_desktop copy-image powershell.exe '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\osw\copy-image.ps1'
+sleep 8
+check "Linux programs are offered it as PNG" $WSH <<<'os-switch-wsl run wl-paste -l | grep -q -x image/png'
+
 marker="written in WSL $(date +%s)"
 $WSH <<<"os-switch-wsl run sh -c 'echo \"$marker\" > ~/from-wsl.txt'"
 
@@ -81,7 +98,7 @@ $WIN start && $WIN wait-ssh 40 || exit 1
 check "the hibernated Linux starts view only" wait_state view-only 180
 check "its disks are write-blocked" $WSH <<<'for d in $(cat /run/os-switch/disks); do [ "$(blockdev --getro "$d")" = 1 ] || exit 1; done'
 check "its programs are in the Start menu" win 'if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Linux\Calculator (Linux).lnk")) { exit 1 }'
-win '$l = (New-Object -ComObject WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Linux\Calculator (Linux).lnk"); Start-Process $l.TargetPath -ArgumentList $l.Arguments -Wait'
+on_desktop start-calculator cmd.exe '/c start "" "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Linux\Calculator (Linux).lnk"'
 sleep 8
 check "a program starts" $WSH <<<'os-switch-wsl run pgrep -f gnome-calculator'
 check "files can be read" $WSH <<<'[ "$(os-switch-wsl run cat Documents/report.txt)" = report ] && os-switch-wsl run test -f /mnt/sub/hello.txt'

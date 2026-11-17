@@ -11,6 +11,7 @@
 #   os-switch-wsl status           say whether it is running
 #
 #   os-switch-wsl stamp            a fingerprint that changes when applications do
+#   os-switch-wsl clip-image <png> offer an image copied in Windows to Linux programs
 #
 # Linux that was shut down is started read-write, with its services. Linux
 # that is hibernated is started "view only": its disks stay write-blocked,
@@ -222,9 +223,11 @@ container_init() { # mode
     mount -t cgroup2 cgroup2 "$REAL/sys/fs/cgroup"
     mount --rbind /dev "$REAL/dev"
     mount -t tmpfs -o mode=755,nosuid,nodev tmpfs "$REAL/run"
-    mkdir -p "$REAL$INSIDE/wslg" "$REAL$INSIDE/wsl-lib" "$REAL$INSIDE/old"
+    mkdir -p "$REAL$INSIDE/wslg" "$REAL$INSIDE/old"
     [ -d /mnt/wslg ] && mount --rbind /mnt/wslg "$REAL$INSIDE/wslg"
-    [ -d /usr/lib/wsl ] && mount --rbind /usr/lib/wsl "$REAL$INSIDE/wsl-lib"
+    # The GPU libraries of WSL look for the Windows drivers under /usr/lib/wsl
+    # and nowhere else. (The empty folder is the one thing left behind on disk.)
+    [ -d /usr/lib/wsl ] && mkdir -p "$REAL/usr/lib/wsl" && mount --rbind /usr/lib/wsl "$REAL/usr/lib/wsl"
     cp /etc/resolv.conf "$REAL$INSIDE/resolv.conf" 2>/dev/null || true
     cd "$REAL"
     pivot_root . "${INSIDE#/}/old"
@@ -290,12 +293,19 @@ start() {
     in_container /bin/sh -c "[ -r /etc/resolv.conf ] || {
         target=\$(readlink -m /etc/resolv.conf); mkdir -p \"\$(dirname \"\$target\")\"
         cp $INSIDE/resolv.conf \"\$target\"; }" || true
-    say "Linux started from $dev ($mode, $s)"
+    # Draw with the graphics card where that works. Mesa does not fall back to
+    # software by itself once its WSL driver is asked for, so try it first.
+    rm -f "$STATE/gpu"
+    if in_container /bin/sh -c 'command -v eglinfo >/dev/null &&
+        LD_LIBRARY_PATH=/usr/lib/wsl/lib GALLIUM_DRIVER=d3d12 eglinfo -B -p surfaceless 2>/dev/null | grep -q D3D12'; then
+        echo d3d12 >"$STATE/gpu"
+    fi
+    say "Linux started from $dev ($mode, $s, graphics: $(cat "$STATE/gpu" 2>/dev/null || echo software))"
 }
 
 run() {
     running || start
-    user=$(in_container /bin/sh -c "awk -F: '\$3 == 1000 { print \$1; exit }' /etc/passwd")
+    user=$(in_container /bin/sh -c "awk -F: '\$3 == 1000 { print \$1; exit }' /etc/passwd" </dev/null)
     [ -n "$user" ] || die "no desktop user (uid 1000) in the Linux installation"
     # X11 programs look for the display socket in /tmp, where systemd keeps an
     # empty directory of its own.
@@ -307,12 +317,14 @@ run() {
         systemctl is-active -q os-switch-session.service ||
             systemd-run --quiet --collect --unit=os-switch-session -p PAMName=login -p User=$user \
                 /usr/bin/sleep infinity
-        for _ in 1 2 3 4 5 6 7 8 9 10; do [ -S /run/user/1000/bus ] && break; sleep 0.3; done" 2>/dev/null || true
-    in_container /usr/bin/runuser -u "$user" -- /usr/bin/env \
+        for _ in 1 2 3 4 5 6 7 8 9 10; do [ -S /run/user/1000/bus ] && break; sleep 0.3; done" </dev/null 2>/dev/null || true
+    gpu=$(cat "$STATE/gpu" 2>/dev/null || true)
+    # shellcheck disable=SC2086  # nothing at all when there is no GPU
+    in_container /usr/bin/runuser -u "$user" -- /usr/bin/env ${gpu:+GALLIUM_DRIVER=$gpu} \
         DISPLAY=:0 WAYLAND_DISPLAY="$INSIDE/wslg/runtime-dir/wayland-0" \
         PULSE_SERVER="unix:$INSIDE/wslg/PulseServer" \
         XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-        XDG_SESSION_TYPE=wayland LD_LIBRARY_PATH="$INSIDE/wsl-lib/lib" \
+        XDG_SESSION_TYPE=wayland LD_LIBRARY_PATH=/usr/lib/wsl/lib \
         /bin/sh -lc 'cd; exec "$@"' sh "$@"
 }
 
@@ -399,7 +411,7 @@ launch() {
                 sed "s/%[fFuUdDnNickvm]//g")
             [ -n "$cmd" ] || break
             exec systemd-run --user --collect --quiet --working-directory="$HOME" \
-                -E DISPLAY -E WAYLAND_DISPLAY -E PULSE_SERVER -E XDG_SESSION_TYPE -E LD_LIBRARY_PATH \
+                -E DISPLAY -E WAYLAND_DISPLAY -E PULSE_SERVER -E XDG_SESSION_TYPE -E LD_LIBRARY_PATH ${GALLIUM_DRIVER:+-E GALLIUM_DRIVER} \
                 /bin/sh -c "exec $cmd"
         done
         echo "no such application: $1" >&2; exit 1' sh "$1"
@@ -427,6 +439,13 @@ stamp() {
     in_container /bin/sh -c "ls -l $APP_DIRS /home/*/.local/share/applications 2>/dev/null" | md5sum | cut -c1-32
 }
 
+# Windows hands a copied image to Linux programs as BMP only, and most of them
+# paste nothing but PNG. Windows saves the image as PNG; offer that instead.
+clip_image() { # file
+    running && [ -f "$1" ] || return 0
+    run /bin/sh -c 'command -v wl-copy >/dev/null && exec wl-copy -t image/png' <"$1"
+}
+
 status() {
     if ! running; then echo stopped
     elif [ "$(cat "$STATE/mode" 2>/dev/null)" = view ]; then echo view-only
@@ -441,6 +460,7 @@ case "${1:-}" in
     stop) stop ;;
     status) status ;;
     stamp) stamp ;;
+    clip-image) clip_image "${2:-}" ;;
     container-init) container_init "${2:-full}" ;;
     *) die "usage: os-switch-wsl start|run <command…>|apps [dir]|launch <id>|stop|status|stamp" 2 ;;
 esac
