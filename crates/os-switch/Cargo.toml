@@ -1,6 +1,6 @@
 [package]
 name = "os-switch"
-version = "2.0.0-alpha.1"
+version = "2.0.0"
 edition = "2021"
 description = "Freeze Linux, hop into Windows and come back: the dual-boot handoff core."
 license = "MIT"

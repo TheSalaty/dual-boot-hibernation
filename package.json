@@ -1,7 +1,7 @@
 {
   "name": "hibernate-windows-shell-extension",
   "type": "module",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0",
   "private": true,
   "description": "GNOME Shell extension: power-menu entries for the os-switch Linux ⇄ Windows handoff.",
   "license": "MIT",

@@ -8,9 +8,9 @@ run there: League of Legends, Valorant and other titles with kernel-level
 anti-cheat. Linux stays your real desktop. You freeze it, play, and return to
 everything where you left it.
 
-> **Version 2 is in development on this branch.** The core was rewritten as
-> `os-switch` and runs on the author's machine. Using Linux from inside Windows
-> ([docs/wsl.md](docs/wsl.md)) is experimental: tested in virtual machines only.
+> **Version 2** rewrote the core as `os-switch`. Using Linux from inside
+> Windows ([docs/wsl.md](docs/wsl.md)) is experimental: it is in daily use on
+> the author's machine and tested in virtual machines, nowhere else yet.
 
 ## What you get
 

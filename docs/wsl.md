@@ -5,9 +5,10 @@ comes from the Linux installation, also while Windows is running, without
 installing anything twice: Windows hands the Linux disks to WSL, your real Linux
 starts there with its own services, and its programs appear in the Start menu.
 
-**Status: experimental.** It runs end to end in a test setup (Windows 11 in a
-virtual machine with WSL, and the disk of a Linux test machine). What that
-setup cannot show is listed under [Not verified](#not-verified).
+**Status: experimental.** It is in daily use on one machine and runs end to end
+in a test setup (Windows 11 in a virtual machine with WSL, and the disk of a
+Linux test machine). What neither shows is listed under
+[Not verified](#not-verified).
 
 ## What works
 
